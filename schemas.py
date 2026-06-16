@@ -5,10 +5,10 @@ class Relative(BaseModel):
     phone_no: int
     relation: str
 
-class Customer(BaseModel):
+class Customer(BaseModel):    
     name : str
-    aadhar_no: int
-    pan_no: int
+    aadhar_no: str
+    pan_no: str
     DOB: str
     phone_no: str
 

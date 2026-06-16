@@ -8,7 +8,7 @@ class User(Base):
     name = Column(String, nullable=False)    
     dob = Column(String, nullable=False)
     aadhar = Column(Integer,unique=True, nullable=False)
-    pan = Column(Integer, unique=True, nullable=False)
+    pan = Column(String, unique=True, nullable=False)
     phone_no = Column(Integer, nullable=False)
     is_customer = Column(Boolean, default=False)
 
@@ -17,6 +17,7 @@ class User(Base):
 class loan_details(Base):
     __tablename__ = "loan details"
 
+    id = Column(Integer, primary_key=True)
     total_loan_amount = Column(Float)  
     balance_amount = Column(Float)
     emi_amount = Column(Float)
