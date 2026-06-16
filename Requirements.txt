@@ -1,0 +1,6 @@
+fastapi[standard]
+sqlalchemy
+passlib
+multipart
+pydantic
+dotenv

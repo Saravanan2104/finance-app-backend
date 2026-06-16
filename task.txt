@@ -1,0 +1,27 @@
+api:
+----
+
+1) Create loan  (post)
+2) get loans by customer id (get)
+3) get all loan customers (get)
+4) create loan customer (post)
+5) update loan customer (put)
+6) delete loan customer (delete)
+7) get all loans  (get)
+
+
+note:
+-----
+1) alert before day 1 if user not pay 
+2) if user paid dont want alert 1 - 5
+3) if user paid some amount to principle based on their interest will be calculated
+4) if user take loan reduce 2.10% or some rate of interest from loan amount balance amount will be give to customer
+	ex:
+		if user applied 1000rs loan , 2.10% interest is 21rs. so, user will get 1000-21 = 979
+	based on we need to calculate.
+
+
+create loan eligibility:
+-----------------------
+
+user need to submit aadhar, pan, photo, name, relative name, phone number, relative phone number
