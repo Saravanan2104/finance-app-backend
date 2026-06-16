@@ -5,14 +5,14 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, nullable=False)    
-    dob = Column(String, nullable=False, nullable=False)
+    name = Column(String, nullable=False)    
+    dob = Column(String, nullable=False)
     aadhar = Column(Integer,unique=True, nullable=False)
     pan = Column(Integer, unique=True, nullable=False)
     phone_no = Column(Integer, nullable=False)
     is_customer = Column(Boolean, default=False)
 
-    
+
 
 class loan_details(Base):
     __tablename__ = "loan details"
