@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from jose import jwt, JWTError
@@ -18,7 +18,7 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+security = HTTPBearer()
 
 def get_db():
     db = database.SessionLocal()
@@ -38,7 +38,9 @@ def create_token(data: dict):
     data.update({"exp": expire})
     return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         aadhar = payload.get("sub")
@@ -88,11 +90,15 @@ def register(user: schemas.UserRegister, db: Session = Depends(get_db)):
     return new_user
 
 @app.post("/login/", response_model=schemas.Token, tags=["Auth"])
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.aadhar == int(form_data.username)).first()
+def login(emp: schemas.UserLogin, db: Session = Depends(get_db)):
+    try:
+        aadhar = int(emp.aadhar)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid aadhar number")
+    user = db.query(models.User).filter(models.User.aadhar == aadhar).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if not verify_password(form_data.password, user.password):
+    if not verify_password(emp.password, user.password):
         raise HTTPException(status_code=401, detail="Incorrect password")
     token = create_token({"sub": str(user.aadhar)})
     return {"access_token": token, "token_type": "bearer"}
