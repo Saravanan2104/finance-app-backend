@@ -148,11 +148,23 @@ def apply_loan(loan: schemas.LoanCreate, db: Session = Depends(get_db), current_
         models.Loan.customer_id == current_user.id,
         models.Loan.status == "active"
     ).first()
-    if active_loan:
-        raise HTTPException(status_code=400, detail="You already have an active loan. Admin approval needed for another loan.")
 
+    old_balance = 0
+
+    if active_loan:
+        old_balance = active_loan.balance_amount
+        # close old loan
+        active_loan.status = "closed"
+        active_loan.balance_amount = 0
+        db.commit()
+        add_notification(db, current_user.id, f"Your old loan has been closed. Remaining balance {old_balance} deducted from new loan.")
+
+    # calculate interest
     interest_amount = (loan.loan_amount * loan.interest_rate) / 100
-    balance = loan.loan_amount - interest_amount
+    balance = loan.loan_amount - interest_amount - old_balance
+
+    if balance < 0:
+        raise HTTPException(status_code=400, detail=f"Old loan balance {old_balance} exceeds new loan amount {loan.loan_amount}")
 
     new_loan = models.Loan(
         customer_id=current_user.id,
@@ -168,10 +180,10 @@ def apply_loan(loan: schemas.LoanCreate, db: Session = Depends(get_db), current_
     db.commit()
     db.refresh(new_loan)
 
-    # notify all admins
+    # notify admins
     admins = db.query(models.User).filter(models.User.role == "admin").all()
     for admin in admins:
-        add_notification(db, admin.id, f"New loan application from {current_user.name} for amount {loan.loan_amount}")
+        add_notification(db, admin.id, f"New loan application from {current_user.name} for amount {loan.loan_amount}. Old balance {old_balance} deducted.")
 
     return new_loan
 

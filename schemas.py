@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, Field
 from datetime import date
 from typing import Optional
 
@@ -19,7 +19,7 @@ class UserLogin(BaseModel):
     password: str
 
 class UserResponse(BaseModel):
-    id: int
+    user_id: int = Field(alias="id")
     name: str
     dob: str
     aadhar: int
@@ -42,7 +42,7 @@ class LoanCreate(BaseModel):
     emi_amount: float
 
 class LoanResponse(BaseModel):
-    id: int
+    loan_id: int = Field(alias="id")
     customer_id: int
     loan_amount: float
     interest_rate: float
@@ -55,7 +55,7 @@ class LoanResponse(BaseModel):
         from_attributes = True
 
 class NotificationResponse(BaseModel):
-    id: int
+    notification_id: int = Field(alias="id")
     user_id: int
     message: str
     is_read: bool
