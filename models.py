@@ -29,6 +29,7 @@ class Loan(Base):
     loan_amount = Column(Float)
     interest_rate = Column(Float)
     balance_amount = Column(Float)
+    net_disbursed_amount = Column(Float, default=0)
     emi_amount = Column(Float)
     loan_date = Column(Date, default=date.today)
     last_interest_date = Column(Date, default=date.today)

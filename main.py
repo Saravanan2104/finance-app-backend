@@ -151,29 +151,43 @@ def apply_loan(loan: schemas.LoanCreate, db: Session = Depends(get_db), current_
     if pending_loan:
         raise HTTPException(status_code=400, detail="You already have a pending loan application")
 
-    # get active loan balance — don't close yet
     active_loan = db.query(models.Loan).filter(
-        models.Loan.customer_id == current_user.id,
-        models.Loan.status == "active"
+    models.Loan.customer_id == current_user.id,
+    models.Loan.status == "active"
     ).first()
 
     old_balance = active_loan.balance_amount if active_loan else 0
 
-    interest_amount = (loan.loan_amount * loan.interest_rate) / 100
-    balance = loan.loan_amount - interest_amount - old_balance
+    interest_amount = (
+        loan.loan_amount * loan.interest_rate
+    ) / 100
 
-    if balance < 0:
-        raise HTTPException(status_code=400, detail=f"Old loan balance {old_balance} exceeds new loan amount {loan.loan_amount}")
+    net_amount = (
+        loan.loan_amount -
+        interest_amount -
+        old_balance
+    )
 
+    if net_amount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Not eligible for loan. "
+                f"Current balance is {old_balance}. "
+                f"Requested amount must be greater than outstanding balance."
+            )
+        )
+        
+    
     new_loan = models.Loan(
-        customer_id=current_user.id,
-        loan_amount=loan.loan_amount,
-        interest_rate=loan.interest_rate,
-        balance_amount=balance,
-        emi_amount=loan.emi_amount,
-        loan_date=date.today(),
-        last_interest_date=date.today(),
-        status="pending"
+    customer_id=current_user.id,
+    loan_amount=loan.loan_amount,
+    interest_rate=loan.interest_rate,
+    balance_amount=loan.loan_amount,
+    emi_amount=loan.emi_amount,
+    loan_date=date.today(),
+    last_interest_date=date.today(),
+    status="pending"
     )
     db.add(new_loan)
     db.commit()
@@ -182,9 +196,46 @@ def apply_loan(loan: schemas.LoanCreate, db: Session = Depends(get_db), current_
     # notify admins
     admins = db.query(models.User).filter(models.User.role == "admin").all()
     for admin in admins:
-        add_notification(db, admin.id, f"New loan application from {current_user.name} for amount {loan.loan_amount}. Old balance {old_balance} will be deducted on approval.")
+        add_notification(
+            db,
+            admin.id,
+            f"New loan application from {current_user.name} for amount {loan.loan_amount}"
+        )
 
     return new_loan
+
+
+@app.post("/loans/preview/", tags=["Loan"])
+def preview_loan(
+    loan: schemas.LoanCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+
+    active_loan = db.query(models.Loan).filter(
+        models.Loan.customer_id == current_user.id,
+        models.Loan.status == "active"
+    ).first()
+
+    old_balance = active_loan.balance_amount if active_loan else 0
+
+    interest_amount = (
+        loan.loan_amount * loan.interest_rate
+    ) / 100
+
+    net_amount = (
+        loan.loan_amount -
+        interest_amount -
+        old_balance
+    )
+
+    return {
+        "requested_loan_amount": loan.loan_amount,
+        "interest_rate": loan.interest_rate,
+        "interest_amount": interest_amount,
+        "old_loan_balance": old_balance,
+        "customer_will_receive": net_amount
+    }
 
 
 
@@ -211,14 +262,37 @@ def approve_loan(loan_id: int, override: bool = False, db: Session = Depends(get
 
     # close active loan on approval
     active_loan = db.query(models.Loan).filter(
-        models.Loan.customer_id == loan.customer_id,
-        models.Loan.status == "active"
-    ).first()
+    models.Loan.customer_id == loan.customer_id,
+    models.Loan.status == "active").first()
+
     if active_loan:
+
+        old_balance = active_loan.balance_amount
+
+        interest_amount = (
+            loan.loan_amount * loan.interest_rate
+        ) / 100
+
+        customer_receives = (
+            loan.loan_amount -
+            interest_amount -
+            old_balance
+        )
+
+        if customer_receives < 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Old balance exceeds new loan amount"
+            )
+
         active_loan.status = "closed"
         active_loan.balance_amount = 0
-        db.commit()
-        add_notification(db, loan.customer_id, f"Your old loan has been closed. New loan of {loan.loan_amount} is now active.")
+
+        add_notification(
+            db,
+            loan.customer_id,
+            f"Old loan closed. New approved loan amount after deductions: {customer_receives}"
+        )
 
     loan.status = "active"
     loan.approved_by = admin.id
