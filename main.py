@@ -143,23 +143,22 @@ def apply_loan(loan: schemas.LoanCreate, db: Session = Depends(get_db), current_
     if current_user.role != "customer":
         raise HTTPException(status_code=403, detail="Only customers can apply for loans")
 
-    # check active loan
+    # check pending loan already exists
+    pending_loan = db.query(models.Loan).filter(
+        models.Loan.customer_id == current_user.id,
+        models.Loan.status == "pending"
+    ).first()
+    if pending_loan:
+        raise HTTPException(status_code=400, detail="You already have a pending loan application")
+
+    # get active loan balance — don't close yet
     active_loan = db.query(models.Loan).filter(
         models.Loan.customer_id == current_user.id,
         models.Loan.status == "active"
     ).first()
 
-    old_balance = 0
+    old_balance = active_loan.balance_amount if active_loan else 0
 
-    if active_loan:
-        old_balance = active_loan.balance_amount
-        # close old loan
-        active_loan.status = "closed"
-        active_loan.balance_amount = 0
-        db.commit()
-        add_notification(db, current_user.id, f"Your old loan has been closed. Remaining balance {old_balance} deducted from new loan.")
-
-    # calculate interest
     interest_amount = (loan.loan_amount * loan.interest_rate) / 100
     balance = loan.loan_amount - interest_amount - old_balance
 
@@ -183,9 +182,12 @@ def apply_loan(loan: schemas.LoanCreate, db: Session = Depends(get_db), current_
     # notify admins
     admins = db.query(models.User).filter(models.User.role == "admin").all()
     for admin in admins:
-        add_notification(db, admin.id, f"New loan application from {current_user.name} for amount {loan.loan_amount}. Old balance {old_balance} deducted.")
+        add_notification(db, admin.id, f"New loan application from {current_user.name} for amount {loan.loan_amount}. Old balance {old_balance} will be deducted on approval.")
 
     return new_loan
+
+
+
 
 @app.get("/loans/", response_model=list[schemas.LoanResponse], tags=["Loan"])
 def get_all_loans(db: Session = Depends(get_db), admin=Depends(require_admin)):
@@ -204,14 +206,19 @@ def approve_loan(loan_id: int, override: bool = False, db: Session = Depends(get
     loan = db.query(models.Loan).filter(models.Loan.id == loan_id).first()
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
+    if loan.status != "pending":
+        raise HTTPException(status_code=400, detail="Loan is not in pending state")
 
-    # check active loan override
+    # close active loan on approval
     active_loan = db.query(models.Loan).filter(
         models.Loan.customer_id == loan.customer_id,
         models.Loan.status == "active"
     ).first()
-    if active_loan and not override:
-        raise HTTPException(status_code=400, detail="Customer has active loan. Pass override=true to approve anyway.")
+    if active_loan:
+        active_loan.status = "closed"
+        active_loan.balance_amount = 0
+        db.commit()
+        add_notification(db, loan.customer_id, f"Your old loan has been closed. New loan of {loan.loan_amount} is now active.")
 
     loan.status = "active"
     loan.approved_by = admin.id
