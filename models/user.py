@@ -1,4 +1,6 @@
 from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import relationship
+
 from models.database import Base
 
 
@@ -22,3 +24,13 @@ class User(Base):
     role = Column(String, default="customer")
 
     password = Column(String, nullable=False)
+
+    loans = relationship(
+        "Loan",
+        back_populates="customer"
+    )
+
+    notifications = relationship(
+        "Notification",
+        back_populates="user"
+    )
