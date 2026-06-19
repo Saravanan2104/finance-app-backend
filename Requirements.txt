@@ -6,3 +6,4 @@ multipart
 pydantic
 dotenv
 python-jose
+pydantic-settings
